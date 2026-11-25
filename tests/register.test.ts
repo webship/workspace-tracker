@@ -374,3 +374,37 @@ test('the outsider notice and the refusals put the right article before the prov
     assert.match(bad.out.html, new RegExp(`Not ${want.replace('such ', '')} here`), one);
   }
 });
+
+test('a tracker that opens no request names the writes it has, where the request is opened, and origin\'s default branch', async () => {
+  const root = workspaceTree();
+  const dir = path.join(root, 'dev', 'site1');
+  const g = (...a: string[]) => execFileSync('git', ['-C', dir, ...a]).toString().trim();
+  g('switch', '-q', '-c', '7-earlier');
+  const { api, calls } = fakeApi(root, ON);
+  const { p } = fakeProvider({ 12: item() }, {
+    title: 'Planner', noun: { one: 'work package', many: 'work packages' },
+    capabilities: { views: ['open'], comment: true, worklog: true, transition: true, labels: false, assign: true, create: true, request: 'none' },
+  });
+  p.defaultBranch = undefined;
+  p.fetchBranch = undefined;
+  p.openRequest = undefined;
+  registerTracker(api, p);
+  const said = /a comment, a worklog, a move and an assignee are each your click,? after a preview; the pull request is opened from the project&#39;s forge menu \(GITHUB, GITLAB …\) when its remote is on a forge/;
+  const list = fragmentCtx('tracker/list/dev/site1');
+  await calls.fragments[0](list.ctx);
+  assert.match(list.out.html, said);
+  assert.doesNotMatch(list.out.html, /a draft pull request/);
+  const tab = fragmentCtx('tracker/item/dev/site1/12/work');
+  await calls.fragments[0](tab.ctx);
+  assert.match(tab.out.html, said);
+  assert.match(tab.out.html, /name="start" value="default" checked> Start from the default branch of site1's remote \(origin\), fetched when you start/);
+  assert.doesNotMatch(tab.out.html, /the default branch of acme\/site/, 'the scope is no repository');
+  assert.match(calls.contexts[0](), /each one \(a comment, a worklog, a move and an assignee\) is the person's click/);
+  assert.match(calls.contexts[0](), /Planner opens no pull request: the pull request is opened from the project's forge menu/);
+  // A forge's provider keeps its words.
+  const { api: a2, calls: c2 } = fakeApi(root, ON);
+  registerTracker(a2, fakeProvider().p);
+  const forge = fragmentCtx('tracker/list/dev/site1');
+  await c2.fragments[0](forge.ctx);
+  assert.match(forge.out.html, /Writes are on: a draft pull request, a comment, a worklog, a move, labels and an assignee are each your click, after a preview\./);
+});
