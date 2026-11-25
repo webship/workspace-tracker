@@ -86,12 +86,12 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
   const caps = p.capabilities;
   const N = p.noun;
   const reqNoun = caps.requestNoun || 'pull request';
-  /** What looks like a credential in a text about to be posted: the shapes known, the platform's own, and the provider's token. */
-  const credentialsIn = (text: string) => tokensIn(text, p.secret ? [p.secret()] : [], p.tokenShapes || []);
   const show = (id: string) => (/^\d+$/.test(id) ? `#${id}` : id);
   const settingsKey = (k: string) => (options.settingsBlock ? `${options.settingsBlock}.${k}` : k);
   const msg = (cls: 'error' | 'assistant', html: string) => `<div class="msg ${cls}">${html}</div>`;
   const vals = (o: Record<string, string>) => `hx-vals='${esc(JSON.stringify(o))}'`;
+  /** What looks like a credential in a text about to be posted: the shapes known, the platform's own, and the provider's token. */
+  const credentialsIn = (text: string) => tokensIn(text, p.secret ? [p.secret()] : [], p.tokenShapes || []);
   if (typeof api.addCss === 'function') api.addCss(path.join(__dirname, '..', '..', 'css', 'tracker.css'));
 
   // ---- Projects and scopes --------------------------------------------------------------------------------
