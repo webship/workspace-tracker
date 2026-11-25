@@ -1,0 +1,13 @@
+/* The tracker family's surface: the list, one item, the result and its previews. Only additions. */
+.tracker-card .uk-label { vertical-align: middle; }
+.tracker-key {
+  display: inline-block; padding: 0 .4em; border-radius: 4px; font-size: .75rem; line-height: 1.5;
+  background: var(--ws-accent-soft, rgba(30, 135, 240, .12)); color: inherit; text-decoration: none;
+}
+.tracker-key:hover { text-decoration: underline; }
+.tracker-body, .tracker-notes {
+  white-space: pre-wrap; word-break: break-word; max-height: 24rem; overflow: auto; font-size: .8rem;
+}
+.tracker-outsider, .tracker-confirm { margin-top: .5rem; }
+.tracker-preview textarea { font-family: var(--ws-mono, monospace); font-size: .8rem; }
+.tracker-menu-head { text-transform: none; }
