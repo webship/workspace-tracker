@@ -119,3 +119,21 @@ export function tokensIn(text: string, known: string[] = []): string[] {
   if (known.some((k) => k && k.length >= 8 && k !== 'CHANGE_ME' && s.includes(k))) found.push("this provider's own token");
   return [...new Set(found)];
 }
+
+/**
+ * "a" or "an" before a word, by how it sounds: an issue, an OpenProject work package, a work item, a task, a user, an hour.
+ * The words a provider names (its noun, its title) are English, and these cover them.
+ */
+export function article(word: string): 'a' | 'an' {
+  const w = String(word || '').trim().toLowerCase();
+  if (!w) return 'a';
+  // A vowel letter that sounds like "you" or "wun" takes "a"; a silent h takes "an".
+  if (/^(uni|use|usu|uti|eu|one|once|ubi|uro|ura)/.test(w)) return 'a';
+  if (/^(hour|honest|honou?r|heir)/.test(w)) return 'an';
+  return /^[aeiou]/.test(w) ? 'an' : 'a';
+}
+
+/** The word with its article: "an issue", "a work item". */
+export function withArticle(word: string): string {
+  return `${article(word)} ${word}`;
+}
