@@ -111,11 +111,12 @@ const TOKEN_SHAPES: [string, RegExp][] = [
 
 /**
  * The kinds of credential found in a text about to be posted, or [] when there are none. `known` are
- * the provider's own secrets: found as they are, wherever they are.
+ * the provider's own secrets: found as they are, wherever they are. `shapes` are the shapes of the
+ * provider's platform's own tokens (its `tokenShapes`), checked beside the ones known here.
  */
-export function tokensIn(text: string, known: string[] = []): string[] {
+export function tokensIn(text: string, known: string[] = [], shapes: Array<[string, RegExp]> = []): string[] {
   const s = String(text || '');
-  const found = TOKEN_SHAPES.filter(([, re]) => re.test(s)).map(([kind]) => kind);
+  const found = [...TOKEN_SHAPES, ...shapes].filter(([, re]) => { re.lastIndex = 0; return re.test(s); }).map(([kind]) => kind);
   if (known.some((k) => k && k.length >= 8 && k !== 'CHANGE_ME' && s.includes(k))) found.push("this provider's own token");
   return [...new Set(found)];
 }

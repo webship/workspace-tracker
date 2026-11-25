@@ -102,6 +102,8 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
   const settingsKey = (k: string) => (options.settingsBlock ? `${options.settingsBlock}.${k}` : k);
   const msg = (cls: 'error' | 'assistant', html: string) => `<div class="msg ${cls}">${html}</div>`;
   const vals = (o: Record<string, string>) => `hx-vals='${esc(JSON.stringify(o))}'`;
+  /** What looks like a credential in a text about to be posted: the shapes known, the platform's own, and the provider's token. */
+  const credentialsIn = (text: string) => tokensIn(text, p.secret ? [p.secret()] : [], p.tokenShapes || []);
   if (typeof api.addCss === 'function') api.addCss(path.join(__dirname, '..', '..', 'css', 'tracker.css'));
 
   // ---- Projects and scopes --------------------------------------------------------------------------------
@@ -590,7 +592,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     const spec = readSpecYml(note.specDir);
     const title = spec.tracker_title || `${p.title} ${show(id)}`;
     const body = requestBody({ closes: show(id), itemUrl: spec.issue || p.urlOf(scope, id), notes: notesOf(note), cliLabel: note.cli, done: ['File an issue about this project', 'Addition/Change/Update/Fix to this project'] });
-    const found = tokensIn(`${title}\n${body}`, p.secret ? [p.secret()] : []);
+    const found = credentialsIn(`${title}\n${body}`);
     const hidden = { workspace: ref.workspace, projectName: ref.project, item: id, ...(asked ? { scope: asked } : {}) };
     return `<div class="tracker-preview">
       <h5>The draft ${esc(reqNoun)}, before anything is pushed</h5>
@@ -614,7 +616,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     const body = spec.pull_request
       ? requestComment({ requestNoun: reqNoun, requestUrl: spec.pull_request, notes: notesOf(note), cliLabel: note.cli, where: `${ref.workspace}/${ref.project}` })
       : `Worked on this in ${ref.workspace}/${ref.project} on the branch \`${note.branch}\`; nothing is pushed yet.\n\n_${note.cli}, from the Webship Workspace. A person reviews it._`;
-    const found = tokensIn(body, p.secret ? [p.secret()] : []);
+    const found = credentialsIn(body);
     const hidden = { workspace: ref.workspace, projectName: ref.project, item: id, ...(asked ? { scope: asked } : {}) };
     return `<div class="tracker-preview"><h5>The comment on ${esc(show(id))}, before it is posted</h5>
       ${found.length ? msg('error', `This text holds what looks like ${esc(found.join(', '))}: it cannot be posted until that is gone.`) : ''}
@@ -856,7 +858,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     const title = oneLine(one(ctx.form, 'title')).slice(0, 200);
     const body = one(ctx.form, 'body').slice(0, 60000);
     if (!title || !body) return ctx.send(msg('error', 'A title and a body, please.'), 400);
-    const found = tokensIn(`${title}\n${body}`, p.secret ? [p.secret()] : []);
+    const found = credentialsIn(`${title}\n${body}`);
     if (found.length) return ctx.send(msg('error', `Not posted: the text holds what looks like ${esc(found.join(', '))}.`), 422);
     const r = await p.openRequest!(g.scope, { dir: note.dir, remote: '', branch: note.branch, base: note.base, title, body, draft: ts().draft });
     await audited(ctx, g, 'push+request', r);
@@ -871,7 +873,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     if (!writeGate(ctx, caps.comment && !!p.comment)) return;
     const body = one(ctx.form, 'body').trim().slice(0, 20000);
     if (!body) return ctx.send(msg('error', 'Write the comment first.'), 400);
-    const found = tokensIn(body, p.secret ? [p.secret()] : []);
+    const found = credentialsIn(body);
     if (found.length) return ctx.send(msg('error', `Not posted: the text holds what looks like ${esc(found.join(', '))}.`), 422);
     const r = await p.comment!(g.scope, g.id, body);
     await audited(ctx, g, 'comment', r);
@@ -885,7 +887,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     const minutes = Math.round(Number(one(ctx.form, 'minutes')));
     const text = oneLine(one(ctx.form, 'text')).slice(0, 200);
     if (!(minutes >= 1 && minutes <= 1440) || !text) return ctx.send(msg('error', 'Minutes (1 to 1440) and one line of what was done.'), 400);
-    if (tokensIn(text, p.secret ? [p.secret()] : []).length) return ctx.send(msg('error', 'Not posted: the line holds what looks like a credential.'), 422);
+    if (credentialsIn(text).length) return ctx.send(msg('error', 'Not posted: the line holds what looks like a credential.'), 422);
     const r = await p.worklog!(g.scope, g.id, { minutes, text });
     await audited(ctx, g, 'worklog', r);
     return ctx.send(r.ok ? msg('assistant', `Logged ${minutes} min on ${esc(show(g.id))}.`) : msg('error', `Not logged: <pre>${esc(r.error.slice(-300))}</pre>`), r.ok ? 200 : 502);
@@ -993,7 +995,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
         const what = one(form, 'note').trim();
         const title = `${name}: ${oneLine(what).slice(0, 80)}`;
         const body = newItemBody(what);
-        if (tokensIn(`${title}\n${body}`, p.secret ? [p.secret()] : []).length) return [];
+        if (credentialsIn(`${title}\n${body}`).length) return [];
         create(scope, { title, body }).then(async (r) => {
           auditWrite(root(), { provider: p.id, scope: scope.id, item: r.id || '', workspace: ws, project: name, write: 'create', by: contributor(), as: await account(), url: r.url || '', ok: r.ok, error: r.ok ? undefined : r.error });
         }).catch(() => { /* audited above when it answers */ });
