@@ -231,10 +231,15 @@ test('the draft request: previewed first, refused when the git config changed, p
   assert.match(preview.out.html, /Pushes <code>12-fix<\/code> to acme\/site and opens a draft pull request against <code>main<\/code>/);
   assert.match(preview.out.html, /Closes #12/);
   assert.strictEqual(writes.request.length, 0, 'a preview writes nothing');
+  // The reviewer's record, as the core's runner writes it (YAML quoting its values).
+  fs.mkdirSync(path.join(spec, 'collaboration'));
+  fs.writeFileSync(path.join(spec, 'collaboration', '20261124T100000Z-reviewer-gemini.md'), "---\nrole: reviewer\nstatus: answered\nverdict: 'changes asked'\n---\n\nVerdict: changes asked\n");
+  fs.writeFileSync(path.join(spec, 'collaboration', '20261124T090000Z-reviewer-gemini.md'), "---\nrole: reviewer\nstatus: 'skipped: Gemini CLI is signed out'\n---\n");
   const result = fragmentCtx('tracker/item/dev/site1/12/result');
   await calls.fragments[0](result.ctx);
   assert.match(result.out.html, /1 commit/);
   assert.match(result.out.html, /Preview the draft pull request/);
+  assert.match(result.out.html, /Reviewer: <strong>changes asked<\/strong>/, 'the newest review, its quotes gone');
   // The session changed the project's git config: no push from it.
   execFileSync('git', ['-C', dir, 'config', 'credential.helper', '!evil']);
   const refused = actionCtx({ ...FORM, title: 'Fix the README typo', body: 'Closes #12' });

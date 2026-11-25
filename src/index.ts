@@ -486,8 +486,10 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     const f = files.pop();
     if (!f) return null;
     const text = fs.readFileSync(path.join(col, f), 'utf8');
-    const v = (text.match(/^verdict:\s*"?([^"\n]+)"?/m) || [])[1] || '';
-    const st = (text.match(/^status:\s*"?([^"\n]+)"?/m) || [])[1] || '';
+    // The core writes its front matter with YAML's own quoting: either quote, or none.
+    const field = (k: string) => String((text.match(new RegExp(`^${k}:\\s*(.*)$`, 'm')) || [])[1] || '').trim().replace(/^(['"])(.*)\1$/, '$2');
+    const v = field('verdict');
+    const st = field('status');
     return { verdict: v, file: path.join(col, f), status: st };
   }
 
@@ -512,7 +514,8 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     out.push(notes ? `<h5>The author's notes</h5><pre class="tracker-notes">${esc(cap(notes, 20000))}</pre>`
       : `<p class="uk-text-meta">No notes yet: the author writes <code>${esc(path.relative(root(), note.specDir))}/notes.md</code> when it is done.</p>`);
     // The reviewer: the core's reviewer role, a different AI provider, on the diff.
-    if (review) out.push(`<p>Reviewer: <strong>${esc(review.verdict || review.status)}</strong> (<code>${esc(path.relative(root(), review.file))}</code>)</p>`);
+    // A review that answered says its verdict; one that was skipped is said once, with the role's reason below.
+    if (review && review.status === 'answered') out.push(`<p>Reviewer: <strong>${esc(review.verdict || 'answered')}</strong> (<code>${esc(path.relative(root(), review.file))}</code>)</p>`);
     if (!isUp && commits.length) {
       out.push(reviewer && reviewer.ready
         ? `<form hx-post="${act('review')}" hx-target="#tracker-result-out" hx-swap="innerHTML">${Object.entries(hidden).map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join('')}
