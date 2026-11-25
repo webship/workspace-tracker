@@ -360,3 +360,17 @@ test('a removed worktree is said as such on Result, and its branch is kept', asy
   assert.ok(!/git status did not answer/.test(result.out.html));
   assert.ok(!/Remove the worktree/.test(result.out.html));
 });
+
+test('the outsider notice and the refusals put the right article before the provider\'s noun', async () => {
+  const root = workspaceTree();
+  for (const [one, want] of [['issue', 'such an issue'], ['work item', 'such a work item'], ['work package', 'such a work package']] as const) {
+    const { api, calls } = fakeApi(root, ON);
+    registerTracker(api, fakeProvider({ 12: item({ author: { name: 'stranger', association: 'outside' } }) }, { noun: { one, many: `${one}s` } }).p);
+    const tab = fragmentCtx('tracker/item/dev/site1/12/overview');
+    await calls.fragments[0](tab.ctx);
+    assert.match(tab.out.html, new RegExp(`Anyone can write ${want}, and its text reaches the AI`), one);
+    const bad = actionCtx({ ...FORM, item: 'x' });
+    await calls.actions['tracker-work'](bad.ctx);
+    assert.match(bad.out.html, new RegExp(`Not ${want.replace('such ', '')} here`), one);
+  }
+});

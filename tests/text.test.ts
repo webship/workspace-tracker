@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-import { fenced, fenceFor, reveal, slug, tokensIn } from '../src/lib/text';
+import { article, fenced, fenceFor, reveal, slug, tokensIn, withArticle } from '../src/lib/text';
 
 test('the fence is longer than any run of backticks in the text, three at least', () => {
   assert.strictEqual(fenceFor('no code here'), '```');
@@ -79,4 +79,17 @@ test('a slug is short, readable, safe, and never says secret or credentials', ()
   assert.ok(slug('a'.repeat(100)).length <= 40);
   assert.strictEqual(slug('$(rm -rf ~) `boom`'), 'rm-rf-boom');
   assert.strictEqual(slug('!!!'), 'item');
+});
+
+test('the article fits the word a provider names: an issue, a work item, a task, a work package, an OpenProject', () => {
+  assert.strictEqual(withArticle('issue'), 'an issue');
+  assert.strictEqual(withArticle('work item'), 'a work item');
+  assert.strictEqual(withArticle('task'), 'a task');
+  assert.strictEqual(withArticle('work package'), 'a work package');
+  assert.strictEqual(withArticle('OpenProject'), 'an OpenProject');
+  assert.strictEqual(withArticle('GitHub'), 'a GitHub');
+  assert.strictEqual(withArticle('epic'), 'an epic');
+  assert.strictEqual(withArticle('user story'), 'a user story', 'a vowel that sounds like "you"');
+  assert.strictEqual(withArticle('hour'), 'an hour', 'a silent h');
+  assert.strictEqual(article(''), 'a');
 });
