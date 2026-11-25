@@ -212,8 +212,8 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
   <h3 class="uk-margin-small-bottom">${esc(p.title)} ${esc(N.many)} of ${esc(scope.id)} — for ${esc(ws)}/${esc(name)}</h3>
   <p class="uk-text-meta">Open one to read it, analyze it, or have the workspace's AI CLI work it on a branch of ${esc(name)}, in a screen
     session you watch. ${s.allowWrites ? `Writes are on: a draft ${esc(reqNoun)} and a comment are each your click, after a preview.` : `Writes to ${esc(p.title)} are off: the work stays on this machine.`}</p>
-  <form hx-get="${esc(listUrl(ref))}/results" hx-target="#tracker-results" hx-swap="innerHTML" hx-sync="this:replace"
-        hx-trigger="input delay:400ms, change, submit">
+  <form hx-get="${esc(listUrl(ref))}/results" hx-target="#tracker-results" hx-swap="innerHTML" hx-sync="this:queue last"
+        hx-trigger="input delay:400ms, submit">
     ${asked ? `<input type="hidden" name="scope" value="${esc(asked)}">` : ''}
     <div class="uk-grid-small uk-child-width-1-2@s" uk-grid>
       <label class="uk-form-label">View

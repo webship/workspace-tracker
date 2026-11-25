@@ -60,7 +60,8 @@ test('the list offers only the views the provider declares, and a number jumps t
   assert.ok(!/value="mine"/.test(shell.out.html));
   assert.match(shell.out.html, /Writes to Fake are off/);
   // The triggers sit on the form itself, as htmx 4 reads them; a button submits it (Enter too).
-  assert.match(shell.out.html, /hx-trigger="input delay:400ms, change, submit"/);
+  // A select sends input as well as change; queueing the last request aborts none (htmx 4 logs an abort as an error).
+  assert.match(shell.out.html, /hx-sync="this:queue last"\s+hx-trigger="input delay:400ms, submit"/);
   assert.match(shell.out.html, /<button class="[^"]*" type="submit">Show<\/button>/);
   assert.ok(!/from:find|from:closest/.test(shell.out.html), 'no from: in a trigger');
   const all = fragmentCtx('tracker/list/dev/site1/results', { view: 'open' });
