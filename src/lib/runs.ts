@@ -28,7 +28,10 @@ export interface RunNote {
   spec: string;
   specDir: string;
   branch: string;
+  /** The branch its request goes against. */
   base: string;
+  /** The ref the branch was made from ('origin/main', or the branch the project was on): what its commits are counted over. */
+  start?: string;
   /** The CLI that played the part. */
   cli: string;
   /** The Claude Code conversation id, when the session holds one. */

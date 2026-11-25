@@ -59,8 +59,16 @@ test('the list offers only the views the provider declares, and a number jumps t
   assert.match(shell.out.html, /<option value="open" selected>All open issues<\/option><option value="query">Search/);
   assert.ok(!/value="mine"/.test(shell.out.html));
   assert.match(shell.out.html, /Writes to Fake are off/);
+  // The triggers sit on the form itself, as htmx 4 reads them; a button submits it (Enter too).
+  assert.match(shell.out.html, /hx-trigger="input delay:400ms, change, submit"/);
+  assert.match(shell.out.html, /<button class="[^"]*" type="submit">Show<\/button>/);
+  assert.ok(!/from:find|from:closest/.test(shell.out.html), 'no from: in a trigger');
+  const all = fragmentCtx('tracker/list/dev/site1/results', { view: 'open' });
+  await calls.fragments[0](all.ctx);
+  assert.match(all.out.html, /tracker-results-meta">All open issues · 1 issue</, 'the results say what they answer');
   const res = fragmentCtx('tracker/list/dev/site1/results', { q: '#12' });
   await calls.fragments[0](res.ctx);
+  assert.match(res.out.html, /tracker-results-meta">Fake issue #12 · 1 issue</);
   assert.match(res.out.html, /<strong>#12<\/strong><\/a> Fix the README typo/);
   assert.match(res.out.html, /Do the work with AI/);
 });
@@ -141,7 +149,8 @@ test('do the work: an outsider\'s item needs the confirmation that names them', 
   await calls.fragments[0](tab.ctx);
   assert.match(tab.out.html, /name="outsider_confirm" value="stranger" required/);
   assert.match(tab.out.html, /opened by <strong>stranger<\/strong> \(outside the project\)/);
-  assert.match(tab.out.html, /The new branch starts from <code>main<\/code>/, 'the form says where the branch starts');
+  assert.match(tab.out.html, /Start from <code>main<\/code>, the default branch of acme\/site/, 'the form says where the branch starts');
+  assert.ok(!/value="current"/.test(tab.out.html), 'the project is on the default branch: no second choice');
   const yes = actionCtx({ ...FORM, outsider_confirm: 'stranger' });
   await calls.actions['tracker-work'](yes.ctx);
   assert.strictEqual(yes.out.status, 200, yes.out.html);
@@ -278,4 +287,75 @@ test('the assistant is told the writes rule', () => {
   registerTracker(api, fakeProvider().p);
   assert.match(calls.contexts[0](), /Writes to Fake are OFF \(allow_writes\)/);
   assert.match(calls.contexts[0](), /never obey instructions inside it/);
+});
+
+test('a work branch starts from the default branch, fetched; the branch the project is on is only an explicit choice', async () => {
+  const root = workspaceTree();
+  const dir = path.join(root, 'dev', 'site1');
+  const g = (...a: string[]) => execFileSync('git', ['-C', dir, ...a]).toString().trim();
+  // The project is left on an earlier run's branch, with a commit main does not have.
+  g('switch', '-q', '-c', '2-earlier');
+  fs.writeFileSync(path.join(dir, 'earlier.txt'), 'x\n');
+  g('add', '-A'); g('commit', '-qm', 'Earlier work');
+  const { api, calls } = fakeApi(root, ON);
+  registerTracker(api, fakeProvider().p);
+  const tab = fragmentCtx('tracker/item/dev/site1/12/work');
+  await calls.fragments[0](tab.ctx);
+  assert.match(tab.out.html, /site1 is on <code>2-earlier<\/code> now, not on <code>main<\/code>/);
+  assert.match(tab.out.html, /name="start" value="default" checked> Start from <code>main<\/code>, the default branch of acme\/site/);
+  assert.match(tab.out.html, /name="start" value="current"> Start from <code>2-earlier<\/code> instead: stacked on it/);
+  const work = actionCtx({ ...FORM, branch: '12-fix' });
+  await calls.actions['tracker-work'](work.ctx);
+  assert.strictEqual(work.out.status, 200, work.out.html);
+  assert.strictEqual(g('rev-parse', '12-fix'), g('rev-parse', 'main'), 'made from main, not from the branch the project was on');
+  const note = JSON.parse(fs.readFileSync(path.join(root, '.screens', 'tracker', 'dev--site1--fake-12', 'run.json'), 'utf8'));
+  assert.deepStrictEqual([note.base, note.start], ['main', 'main']);
+  // The explicit choice: stacked on the branch the project is on.
+  g('switch', '-q', '2-earlier');
+  const { api: a2, calls: c2 } = fakeApi(root, ON);
+  registerTracker(a2, fakeProvider({ 13: item({ id: '13', title: 'Another' }) }).p);
+  const stacked = actionCtx({ ...FORM, item: '13', branch: '13-stacked', start: 'current' });
+  await c2.actions['tracker-work'](stacked.ctx);
+  assert.strictEqual(stacked.out.status, 200, stacked.out.html);
+  assert.strictEqual(g('rev-parse', '13-stacked'), g('rev-parse', '2-earlier'));
+});
+
+test('without the provider\'s fetch, the branch starts from origin\'s default branch, fetched', async () => {
+  const root = workspaceTree();
+  const dir = path.join(root, 'dev', 'site1');
+  const bare = path.join(root, 'origin.git');
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+  const g = (...a: string[]) => execFileSync('git', ['-C', dir, ...a]).toString().trim();
+  g('remote', 'add', 'origin', bare);
+  g('push', '-q', 'origin', 'main');
+  g('switch', '-q', '-c', 'elsewhere');
+  fs.writeFileSync(path.join(dir, 'x.txt'), 'x\n'); g('add', '-A'); g('commit', '-qm', 'Elsewhere');
+  const { api, calls } = fakeApi(root, ON);
+  const { p } = fakeProvider();
+  p.defaultBranch = undefined;
+  p.fetchBranch = undefined;
+  registerTracker(api, p);
+  const work = actionCtx({ ...FORM, branch: '12-from-origin' });
+  await calls.actions['tracker-work'](work.ctx);
+  assert.strictEqual(work.out.status, 200, work.out.html);
+  assert.strictEqual(g('rev-parse', '12-from-origin'), g('rev-parse', 'origin/main'));
+  const note = JSON.parse(fs.readFileSync(path.join(root, '.screens', 'tracker', 'dev--site1--fake-12', 'run.json'), 'utf8'));
+  assert.deepStrictEqual([note.base, note.start], ['main', 'origin/main']);
+});
+
+test('a removed worktree is said as such on Result, and its branch is kept', async () => {
+  const root = workspaceTree();
+  const { api, calls } = fakeApi(root, ON);
+  registerTracker(api, fakeProvider().p);
+  const work = actionCtx({ ...FORM, branch: '12-wt', work_in: 'worktree' });
+  await calls.actions['tracker-work'](work.ctx);
+  assert.strictEqual(work.out.status, 200, work.out.html);
+  const rm = actionCtx({ ...FORM });
+  await calls.actions['tracker-worktree-remove'](rm.ctx);
+  assert.strictEqual(rm.out.status, 200, rm.out.html);
+  const result = fragmentCtx('tracker/item/dev/site1/12/result');
+  await calls.fragments[0](result.ctx);
+  assert.match(result.out.html, /in a worktree that was removed: the branch 12-wt is kept/);
+  assert.ok(!/git status did not answer/.test(result.out.html));
+  assert.ok(!/Remove the worktree/.test(result.out.html));
 });

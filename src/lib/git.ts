@@ -39,17 +39,25 @@ export function gitOps(run: PluginLib['run']) {
   async function branchExists(dir: string, name: string): Promise<boolean> {
     return (await git(dir, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`])).ok;
   }
-  /** A new branch from the current one, in the project itself. */
-  async function newBranch(dir: string, name: string): Promise<RunResult> {
-    return git(dir, ['switch', '-c', name]);
+  /** A new branch in the project itself, from `start` (a ref) or from where the project is. */
+  async function newBranch(dir: string, name: string, start = ''): Promise<RunResult> {
+    return git(dir, ['switch', '--no-track', '-c', name, ...(start ? [start] : [])]);
+  }
+  /** origin's default branch as git knows it here ('origin/main'), after a fetch; '' when origin has no HEAD. */
+  async function originHead(dir: string): Promise<string> {
+    const f = await git(dir, ['fetch', '--quiet', 'origin'], 120 * 1000);
+    if (!f.ok) return '';
+    let r = await git(dir, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']);
+    if (!r.ok) { await git(dir, ['remote', 'set-head', 'origin', '--auto'], 60 * 1000); r = await git(dir, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']); }
+    return r.ok ? out(r) : '';
   }
   /** Back to the branch the run started from, when nothing was done on the new one. */
   async function switchTo(dir: string, name: string): Promise<RunResult> {
     return git(dir, ['switch', name]);
   }
-  /** A worktree outside the workspace folders, on a new branch from `base`. */
-  async function addWorktree(dir: string, wtDir: string, name: string, base: string): Promise<RunResult> {
-    return git(dir, ['worktree', 'add', '-b', name, wtDir, base], 120 * 1000);
+  /** A worktree outside the workspace folders, on a new branch from `start`. */
+  async function addWorktree(dir: string, wtDir: string, name: string, start: string): Promise<RunResult> {
+    return git(dir, ['worktree', 'add', '--no-track', '-b', name, wtDir, start], 120 * 1000);
   }
   /** Remove a worktree; git refuses while it has changes, and that refusal stands. */
   async function removeWorktree(dir: string, wtDir: string): Promise<RunResult> {
@@ -86,7 +94,7 @@ export function gitOps(run: PluginLib['run']) {
     return r.ok ? out(r).split('\n').filter(Boolean) : [];
   }
 
-  return { git, isRepo, currentBranch, dirty, branchExists, newBranch, switchTo, addWorktree, removeWorktree, commitsAhead, diffStat, diff, configHash, configKeys, remoteUrl, remotes };
+  return { git, isRepo, currentBranch, dirty, branchExists, newBranch, originHead, switchTo, addWorktree, removeWorktree, commitsAhead, diffStat, diff, configHash, configKeys, remoteUrl, remotes };
 }
 
 /** Where the worktree of an item goes: under the workspace root, outside every workspace folder. */

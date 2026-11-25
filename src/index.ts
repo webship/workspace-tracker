@@ -213,7 +213,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
   <p class="uk-text-meta">Open one to read it, analyze it, or have the workspace's AI CLI work it on a branch of ${esc(name)}, in a screen
     session you watch. ${s.allowWrites ? `Writes are on: a draft ${esc(reqNoun)} and a comment are each your click, after a preview.` : `Writes to ${esc(p.title)} are off: the work stays on this machine.`}</p>
   <form hx-get="${esc(listUrl(ref))}/results" hx-target="#tracker-results" hx-swap="innerHTML" hx-sync="this:replace"
-        hx-trigger="input changed delay:400ms from:find input[name=q], change from:find select, submit">
+        hx-trigger="input delay:400ms, change, submit">
     ${asked ? `<input type="hidden" name="scope" value="${esc(asked)}">` : ''}
     <div class="uk-grid-small uk-child-width-1-2@s" uk-grid>
       <label class="uk-form-label">View
@@ -221,8 +221,11 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
       ${views.includes('assigned') ? `<label class="uk-form-label">Assigned to (for that view)
         <input class="uk-input uk-form-small" name="who" value="${esc(who)}" autocomplete="off" placeholder="an account name"></label>` : ''}
     </div>
-    <input class="uk-input uk-form-small uk-margin-small-top" name="q" value="${esc(text)}" type="search" autocomplete="off"
-      placeholder="Filter by words, or jump to a number (${esc(show(p.idPattern.test('12') ? '12' : 'KEY-12'))})…" aria-label="Filter the ${esc(N.many)}">
+    <div class="uk-flex uk-flex-middle uk-margin-small-top tracker-filter">
+      <input class="uk-input uk-form-small" name="q" value="${esc(text)}" type="search" autocomplete="off"
+        placeholder="Filter by words, or jump to a number (${esc(show(p.idPattern.test('12') ? '12' : 'KEY-12'))})…" aria-label="Filter the ${esc(N.many)}">
+      <button class="uk-button uk-button-default uk-button-small uk-margin-small-left" type="submit">Show</button>
+    </div>
   </form>
   <p class="uk-text-meta uk-margin-small-top">${own ? `${esc(name)} remembers ${esc(own.id)}.
     <button type="button" class="uk-button uk-button-default uk-button-small" hx-post="${act('remember')}" ${vals({ workspace: ws, projectName: name, scope: '' })} hx-target="#editor-modal-body" hx-swap="innerHTML">Forget</button>`
@@ -263,8 +266,10 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
         </div>
       </div>`;
     }).join('');
+    const said = jump && p.idPattern.test(jump) ? `${p.title} ${N.one} ${show(jump)}` : `${VIEW_LABEL(view)}${view === 'assigned' && who ? ` ${who}` : ''}${text ? ` · "${text}"` : ''}`;
+    const meta = `<p class="uk-text-meta tracker-results-meta">${esc(said)} · ${items.length} ${esc(items.length === 1 ? N.one : N.many)}</p>`;
     return send(problem ? msg('error', `${esc(p.title)} did not answer: <pre>${esc(problem.slice(-400))}</pre>`)
-      : (rows || `<p class="uk-text-meta">No ${esc(N.many)} in this view.</p>`));
+      : `${meta}${rows || `<p class="uk-text-meta">No ${esc(N.many)} in this view.</p>`}`);
   }
 
   // ---- One item -------------------------------------------------------------------------------------------
@@ -393,7 +398,16 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
       const specDir = specPreview(ref, id, it.title);
       const rc = rulesContext(ref, scope, id, s.workIn === 'worktree' ? worktreeDir(root(), ws, name, p.id, id) : ref.dir, specDir, branch);
       const refuse = !!o && s.outsiderItems === 'refuse';
-      const from = (await git.currentBranch(ref.dir)) || '';
+      const current = (await git.currentBranch(ref.dir)) || '';
+      let def = '';
+      try { def = p.defaultBranch ? await p.defaultBranch(scope) : ''; } catch (_) { def = ''; }
+      const elsewhere = !!current && !!def && current !== def;
+      const startHtml = !current ? `<p class="uk-text-meta uk-margin-remove">${esc(name)} is not on a branch (or is not a git repository): the work needs one.</p>`
+        : `<div class="tracker-start">
+            ${elsewhere ? `<p class="uk-text-meta uk-margin-remove">${esc(name)} is on <code>${esc(current)}</code> now, not on <code>${esc(def)}</code>.</p>` : ''}
+            <label><input class="uk-radio" type="radio" name="start" value="default" checked> Start from <code>${esc(def || 'the default branch')}</code>, the default branch of ${esc(scope.id)}, fetched when you start; its ${esc(reqNoun)} goes against <code>${esc(def || 'it')}</code></label><br>
+            ${elsewhere ? `<label><input class="uk-radio" type="radio" name="start" value="current"> Start from <code>${esc(current)}</code> instead: stacked on it, its ${esc(reqNoun)} goes against <code>${esc(current)}</code></label>` : ''}
+          </div>`;
       return send(`<div class="tracker-work">
         <p><strong>${esc(author.label)}</strong> (the workspace's author role${isClaude(author) ? ', interactive' : ', headless through the core runner'}) works
           ${esc(show(id))} in <strong>${esc(ws)}/${esc(name)}</strong>, on a new branch, in a screen session you watch and answer.
@@ -406,7 +420,9 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
           <label class="uk-form-label">Branch
             <input class="uk-input uk-form-small" name="branch" value="${esc(branch)}" pattern="[A-Za-z0-9][A-Za-z0-9._/\\-]{0,90}" required></label>
           <div class="uk-margin-small-top">
-            <p class="uk-text-meta uk-margin-remove">${from ? `The new branch starts from <code>${esc(from)}</code>, the branch ${esc(name)} is on now, and a ${esc(reqNoun)} from it goes against <code>${esc(from)}</code>.` : `${esc(name)} is not on a branch (or is not a git repository): the work needs one.`}</p>
+            ${startHtml}
+          </div>
+          <div class="uk-margin-small-top">
             <label><input class="uk-radio" type="radio" name="work_in" value="branch"${s.workIn === 'branch' ? ' checked' : ''}> A branch in ${esc(name)} (a running site shows the change)</label><br>
             <label><input class="uk-radio" type="radio" name="work_in" value="worktree"${s.workIn === 'worktree' ? ' checked' : ''}> A worktree outside the workspace folders (${esc(name)} stays as it is)</label>
           </div>
@@ -504,15 +520,17 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     if (!note) return `<p class="uk-text-meta">${esc(show(id))} has not been worked in ${esc(ref.project)} yet: start it from Do the work.</p>`;
     const s = ts();
     const isUp = live.some((x) => x.session === note.session && !/dead/i.test(x.state || ''));
+    const from = note.start || note.base;
+    const gone = note.workIn === 'worktree' && !fs.existsSync(note.workDir);
     const [commits, stat, dirtyFiles] = await Promise.all([
-      git.commitsAhead(note.dir, note.base, note.branch), git.diffStat(note.dir, note.base, note.branch), git.dirty(note.workDir),
+      git.commitsAhead(note.dir, from, note.branch), git.diffStat(note.dir, from, note.branch), gone ? Promise.resolve([] as string[]) : git.dirty(note.workDir),
     ]);
     const notes = notesOf(note);
     const review = lastReview(note);
     const reviewer = await reviewerRole();
     const hidden = { workspace: ref.workspace, projectName: ref.project, item: id, ...(asked ? { scope: asked } : {}) };
     const out: string[] = [];
-    out.push(`<p>Branch <code>${esc(note.branch)}</code> from <code>${esc(note.base)}</code>, ${note.workIn === 'worktree' ? `in the worktree <code>${esc(note.workDir)}</code>` : `in ${esc(ref.project)}`},
+    out.push(`<p>Branch <code>${esc(note.branch)}</code> from <code>${esc(from)}</code>, its ${esc(reqNoun)} against <code>${esc(note.base)}</code>, ${note.workIn === 'worktree' ? (gone ? `in a worktree that was removed: the branch ${esc(note.branch)} is kept` : `in the worktree <code>${esc(note.workDir)}</code>`) : `in ${esc(ref.project)}`},
       by ${esc(note.cli)}. The session is ${isUp ? `<strong>live</strong>: ${screensLink(note.session)}` : `finished (${screensLink(note.session, 'its log')})`}.</p>`);
     out.push(commits.length ? `<h5>${commits.length} commit${commits.length === 1 ? '' : 's'}</h5><pre class="tracker-notes">${esc(commits.join('\n'))}\n\n${esc(stat)}</pre>`
       : '<p class="uk-text-meta">No commit on the branch yet.</p>');
@@ -539,7 +557,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
       ];
       if (buttons.length) out.push(`<p>${buttons.join(' ')}</p>`);
     }
-    if (note.workIn === 'worktree' && !isUp) {
+    if (note.workIn === 'worktree' && !isUp && !gone) {
       out.push(`<form hx-post="${act('worktree-remove')}" hx-target="#tracker-result-out" hx-swap="innerHTML" hx-confirm="Remove the worktree ${esc(note.workDir)}? Its branch stays.">${Object.entries(hidden).map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join('')}
         <button class="uk-button uk-button-default uk-button-small" type="submit">Remove the worktree (the branch stays)</button></form>`);
     }
@@ -701,8 +719,26 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     if (!BRANCH_RE.test(branch)) return send(msg('error', 'Not a branch name: letters, digits, . _ / and -, starting with a letter or digit.'), 400);
     const workIn = one(form, 'work_in') === 'worktree' ? 'worktree' : one(form, 'work_in') === 'branch' ? 'branch' : s.workIn;
     if (!(await git.isRepo(g.ref.dir))) return send(msg('error', `${esc(g.ref.project)} is not a git repository: the work needs a branch.`), 409);
-    const baseBranch = await git.currentBranch(g.ref.dir);
-    if (!baseBranch) return send(msg('error', `${esc(g.ref.project)} is not on a branch (a detached HEAD): check one out first.`), 409);
+    const current = await git.currentBranch(g.ref.dir);
+    if (!current) return send(msg('error', `${esc(g.ref.project)} is not on a branch (a detached HEAD): check one out first.`), 409);
+    // Where the branch starts, and what its request goes against: the default branch of the scope, fetched now, unless
+    // the person chose the branch the project is on (a stacked request, said so in the form).
+    let baseBranch = current;
+    let startRef = current;
+    if (one(form, 'start') !== 'current') {
+      try {
+        if (p.defaultBranch && p.fetchBranch) {
+          baseBranch = await p.defaultBranch(g.scope);
+          const f = await p.fetchBranch(g.scope, g.ref.dir, baseBranch);
+          if (!f.ok) return send(msg('error', `Could not fetch ${esc(baseBranch)} of ${esc(g.scope.id)}: <pre>${esc(f.error.slice(-300))}</pre> Nothing was changed. Start from the branch ${esc(g.ref.project)} is on instead, or fetch it yourself.`), 502);
+          startRef = f.ref;
+        } else {
+          startRef = await git.originHead(g.ref.dir);
+          if (!startRef) return send(msg('error', `Could not fetch origin's default branch in ${esc(g.ref.project)}. Nothing was changed. Start from the branch it is on instead.`), 502);
+          baseBranch = startRef.replace(/^origin\//, '');
+        }
+      } catch (e) { return send(msg('error', `Could not read the default branch of ${esc(g.scope.id)}: ${esc(String((e as Error).message || e))}. Nothing was changed.`), 502); }
+    }
     if (await git.branchExists(g.ref.dir, branch)) return send(msg('error', `The branch ${esc(branch)} is there already: name another, or finish the run on it.`), 409);
     let workDir = g.ref.dir;
     if (workIn === 'branch') {
@@ -712,13 +748,13 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     const snap = writeSnapshot(root(), g.ref, p, g.scope, it, { commentsFrom: s.commentsFrom });
     setSpecFields(snap.dir, { tracker_title: oneLine(it.title).slice(0, 200) });
     if (workIn === 'branch') {
-      const r = await git.newBranch(g.ref.dir, branch);
+      const r = await git.newBranch(g.ref.dir, branch, startRef);
       if (!r.ok) return send(msg('error', `git did not make the branch: <pre>${esc(String(r.stderr || r.stdout).slice(-300))}</pre>`), 500);
     } else {
       workDir = worktreeDir(root(), g.ref.workspace, g.ref.project, p.id, g.id);
       if (fs.existsSync(workDir)) return send(msg('error', `A worktree is there already: ${esc(workDir)}. Remove it from the Result tab first.`), 409);
       fs.mkdirSync(path.dirname(workDir), { recursive: true });
-      const r = await git.addWorktree(g.ref.dir, workDir, branch, baseBranch);
+      const r = await git.addWorktree(g.ref.dir, workDir, branch, startRef);
       if (!r.ok) return send(msg('error', `git did not make the worktree: <pre>${esc(String(r.stderr || r.stdout).slice(-300))}</pre>`), 500);
     }
     const gitConfig = await git.configHash(g.ref.dir);
@@ -736,11 +772,11 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     }, `work ${show(g.id)}`);
     if (!started.ok) {
       // Nothing ran: the branch or worktree goes, so the next try starts clean.
-      if (workIn === 'branch') { await git.switchTo(g.ref.dir, baseBranch); await git.git(g.ref.dir, ['branch', '-D', branch]); } else { await git.removeWorktree(g.ref.dir, workDir); await git.git(g.ref.dir, ['branch', '-D', branch]); }
+      if (workIn === 'branch') { await git.switchTo(g.ref.dir, current); await git.git(g.ref.dir, ['branch', '-D', branch]); } else { await git.removeWorktree(g.ref.dir, workDir); await git.git(g.ref.dir, ['branch', '-D', branch]); }
       return send(lib.screenStartedHtml(started, `work on ${show(g.id)}`, g.ref.project), 500);
     }
-    writeNote(root(), noteFor('work', session, g, snap, workDir, workIn, branch, baseBranch, author.label, interactive ? claudeId : '', gitConfig));
-    setSpecFields(snap.dir, { branch, base: baseBranch, work_in: workIn, work_dir: workDir });
+    writeNote(root(), { ...noteFor('work', session, g, snap, workDir, workIn, branch, baseBranch, author.label, interactive ? claudeId : '', gitConfig), start: startRef });
+    setSpecFields(snap.dir, { branch, base: baseBranch, start: startRef, work_in: workIn, work_dir: workDir });
     let posted = '';
     if (one(form, 'comment_session') === '1' && s.allowWrites && caps.comment && p.comment) {
       const body = sessionComment({ cliLabel: author.label, where: `${g.ref.workspace}/${g.ref.project}`, session, watch: `https://${lib.hubDomain()}/screens?session=${encodeURIComponent(session)}`, claude: interactive ? claudeId : '' });
@@ -759,7 +795,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     if (!note) return ctx.send(msg('error', 'No run to review.'), 409);
     const reviewer = await reviewerRole();
     if (!reviewer || !reviewer.ready) return ctx.send(msg('error', `The reviewer role cannot run: ${esc(reviewer ? reviewer.why : 'none is set')}.`), 409);
-    const diff = await git.diff(note.dir, note.base, note.branch);
+    const diff = await git.diff(note.dir, note.start || note.base, note.branch);
     if (!diff.trim()) return ctx.send(msg('error', 'The branch has no change to review.'), 409);
     fs.writeFileSync(path.join(note.specDir, 'work.diff'), cap(diff, 400 * 1024));
     // The author's notes go in first, as the author's run, so the reviewer is handed them (the core's record).
@@ -794,8 +830,8 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     if (!note) return ctx.send(msg('error', 'No run to open it from.'), 409);
     const live = await lib.listScreens().catch(() => []);
     if (live.some((x) => x.session === note.session && !/dead/i.test(x.state || ''))) return ctx.send(msg('error', 'The author session is still running: let it finish first.'), 409);
-    const commits = await git.commitsAhead(note.dir, note.base, note.branch);
-    if (!commits.length) return ctx.send(msg('error', `${esc(note.branch)} has no commit over ${esc(note.base)}.`), 409);
+    const commits = await git.commitsAhead(note.dir, note.start || note.base, note.branch);
+    if (!commits.length) return ctx.send(msg('error', `${esc(note.branch)} has no commit over ${esc(note.start || note.base)}.`), 409);
     // The session could write the project's .git/config (a helper, an insteadOf, a hook path): no push from a config it changed.
     if (note.gitConfig && (await git.configHash(note.dir)) !== note.gitConfig) {
       return ctx.send(msg('error', `The project's git config changed since the session started (now: ${esc((await git.configKeys(note.dir)).join(', '))}). Nothing was pushed: read .git/config first.`), 409);

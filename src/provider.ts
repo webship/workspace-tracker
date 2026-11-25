@@ -153,6 +153,14 @@ export interface TrackerProvider {
   /** The CLI a session must not run (gh, glab, twg): denied in the author session. */
   cli?: string;
 
+  /** The default branch of the scope's repository ('main'): a run's branch starts from it, and its request goes against it. */
+  defaultBranch?: (scope: TrackerScope) => Promise<string>;
+  /**
+   * Fetch one branch of the scope's repository into the project, with the provider's credential, and answer the ref to
+   * start from ('origin/main'). Without it the base fetches origin and starts from origin's HEAD.
+   */
+  fetchBranch?: (scope: TrackerScope, dir: string, branch: string) => Promise<{ ok: boolean; error: string; ref: string }>;
+
   // ---- Writes: optional, each one offered when it is here, declared and writes are on. ----
   comment?: (scope: TrackerScope, id: string, markdown: string) => Promise<WriteResult>;
   worklog?: (scope: TrackerScope, id: string, entry: { minutes: number; text: string }) => Promise<WriteResult>;

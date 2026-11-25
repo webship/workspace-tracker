@@ -125,6 +125,9 @@ export function fakeProvider(items: Record<string, TrackerItemFull> = { 12: item
     urlOf: (s, id) => `${s.web}/issues/${id}`,
     account: async () => 'owner1',
     secret: () => 'fake-provider-secret-value',
+    // The repository's default branch is main; "fetching" it answers the local main, which the tests move as they need.
+    defaultBranch: async () => 'main',
+    fetchBranch: async () => ({ ok: true, error: '', ref: 'main' }),
     cli: 'fakecli',
     comment: async (_s, id, body) => { writes.comment.push({ id, body }); return ok(`https://forge.test/acme/site/issues/${id}#c1`); },
     worklog: async (_s, id, e) => { writes.worklog.push({ id, ...e }); return ok(); },
