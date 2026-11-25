@@ -61,6 +61,8 @@ test('outgoing text is refused when it holds anything token-shaped, named by kin
   assert.deepStrictEqual(tokensIn(`github_pat_${'A1b2_'.repeat(10)}`), ['a GitHub token']);
   assert.deepStrictEqual(tokensIn(`glpat-${'x1Y2z3'.repeat(4)}`), ['a GitLab token']);
   assert.deepStrictEqual(tokensIn('key AKIAIOSFODNN7EXAMPLE here'), ['an AWS access key']);
+  assert.deepStrictEqual(tokensIn(`x opapi-${'ab12'.repeat(16)}`, [], [['an OpenProject token', /\bopapi-[0-9a-f]{32,}/]]), ['an OpenProject token'], 'a shape the provider names');
+  assert.deepStrictEqual(tokensIn(`x opapi-${'ab12'.repeat(16)}`), [], 'and only when it names it');
   assert.deepStrictEqual(tokensIn('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'), ['a JSON Web Token']);
   assert.deepStrictEqual(tokensIn('-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk\n-----END OPENSSH PRIVATE KEY-----'), ['a private key']);
   assert.deepStrictEqual(tokensIn('-----BEGIN RSA PRIVATE KEY-----'), ['a private key']);

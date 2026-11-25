@@ -150,6 +150,11 @@ export interface TrackerProvider {
   tokenVariables?: string[];
   /** The token itself, only so that outgoing text can be checked for it; never shown, never logged. */
   secret?: () => string;
+  /**
+   * The shapes of the platform's own tokens, each with the words a refusal says ("an OpenProject token"): the guard
+   * refuses them in whatever is about to be posted, beside the shapes it knows and the provider's own token.
+   */
+  tokenShapes?: Array<[string, RegExp]>;
   /** The CLI a session must not run (gh, glab, twg): denied in the author session. */
   cli?: string;
 

@@ -374,3 +374,25 @@ test('the outsider notice and the refusals put the right article before the prov
     assert.match(bad.out.html, new RegExp(`Not ${want.replace('such ', '')} here`), one);
   }
 });
+
+test('the shapes of the platform\'s own tokens, which the provider names, are refused before a comment or a worklog is posted', async () => {
+  const root = workspaceTree();
+  const { api, calls } = fakeApi(root, ON);
+  const { p, writes } = fakeProvider({ 12: item() }, { tokenShapes: [['an OpenProject token', /\bop(?:api|al|bk|ical)-[0-9a-f]{32,}/g]] });
+  registerTracker(api, p);
+  const token = `opapi-${'0123456789abcdef'.repeat(4)}`;
+  for (let i = 0; i < 2; i += 1) {
+    // Twice: a shape with the g flag keeps no state from one check to the next.
+    const leak = actionCtx({ ...FORM, body: `the key is ${token}` });
+    await calls.actions['tracker-comment'](leak.ctx);
+    assert.strictEqual(leak.out.status, 422);
+    assert.match(leak.out.html, /an OpenProject token/);
+  }
+  const line = actionCtx({ ...FORM, minutes: '5', text: `with ${token}` });
+  await calls.actions['tracker-worklog'](line.ctx);
+  assert.strictEqual(line.out.status, 422);
+  assert.deepStrictEqual([writes.comment.length, writes.worklog.length], [0, 0]);
+  const fine = actionCtx({ ...FORM, body: 'opapi- is the prefix of its tokens, and that is fine to say.' });
+  await calls.actions['tracker-comment'](fine.ctx);
+  assert.strictEqual(fine.out.status, 200);
+});
