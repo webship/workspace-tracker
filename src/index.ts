@@ -59,8 +59,12 @@ export interface TrackerOptions {
 }
 
 export interface TrackerHandle {
-  /** The menu entries for a row, for a forge's own menu: '' when the row has no scope here. `header: false` leaves out the heading line. */
-  menuItems: (ctx: RowContext, opts?: { header?: boolean }) => string;
+  /**
+   * The menu entries for a row, for a forge's own menu: '' when the row has no scope here. `header: false` leaves out the
+   * heading line; `whenBlocked: 'none'` answers '' while the provider is not ready (no CLI, no token), so the forge keeps
+   * the entry it had before.
+   */
+  menuItems: (ctx: RowContext, opts?: { header?: boolean; whenBlocked?: 'disabled' | 'none' }) => string;
   settings: () => TrackerSettings;
 }
 
@@ -131,13 +135,15 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
 
   // ---- The menu -------------------------------------------------------------------------------------------
 
-  const liveCount = (ref: ProjectRef) => liveWork(root(), p.id, lib.screensCached()).filter((n) => n.workspace === ref.workspace && n.project === ref.project).length;
+  const liveCount = (ref: ProjectRef) => liveWork(root(), p.id, typeof lib.screensCached === 'function' ? lib.screensCached() : [])
+    .filter((n) => n.workspace === ref.workspace && n.project === ref.project).length;
 
-  function menuItems(ctx: RowContext, opts: { header?: boolean } = {}): string {
+  function menuItems(ctx: RowContext, opts: { header?: boolean; whenBlocked?: 'disabled' | 'none' } = {}): string {
     const ref = { workspace: ctx.key, project: ctx.project, dir: path.join(ctx.dir, ctx.project) };
     const scope = scopeFor(ref);
     if (!scope) return '';
     const blocked = p.ready();
+    if (blocked && opts.whenBlocked === 'none') return '';
     const own = remembered(ref.dir);
     const head = opts.header === false ? '' : `<li class="uk-nav-header tracker-menu-head">${esc(p.title)} ${esc(N.many)}${blocked ? '' : ` · ${esc(scope.id)}${own ? ' (remembered)' : ''}`}</li>`;
     if (blocked) {

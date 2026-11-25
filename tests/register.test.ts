@@ -30,6 +30,10 @@ test('registerTracker asks for its whole surface, under its own names', () => {
   const handle = registerTracker(api2, fakeProvider().p, { menu: 'none', settingsBlock: 'tracker' });
   assert.deepStrictEqual(Object.keys(calls2.rowMenus), [], 'a forge shows the entries in its own menu');
   assert.match(handle.menuItems(ROW(root)), /\/fragments\/p\/fake\/tracker\/list\/dev\/site1/);
+  const { api: a3 } = fakeApi(root);
+  const blocked = registerTracker(a3, fakeProvider({}, { ready: () => 'no token' }).p, { menu: 'none' });
+  assert.match(blocked.menuItems(ROW(root)), /uk-disabled[\s\S]*no token/, 'a blocked provider says why');
+  assert.strictEqual(blocked.menuItems(ROW(root), { whenBlocked: 'none' }), '', 'or answers nothing, so a forge keeps its own entry');
 });
 
 test('the menu needs a scope and a ready provider, and says what is missing', () => {
