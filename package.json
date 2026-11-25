@@ -1,6 +1,6 @@
 {
   "name": "@webship.co/workspace-tracker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The tracker family's shared base for Webship Workspace plugins: the TrackerProvider contract, and the work-item surface every tracker plugin builds on (the menu, the list, one item with overview, analyze, do the work, result and runs, the badge and New folder), registered through registerTracker(api, provider). An AI CLI of the workspace works a ticket on a branch in a screen session; the dashboard does every write, after a preview, only when writes are on.",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
