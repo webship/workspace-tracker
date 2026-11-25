@@ -137,6 +137,7 @@ test('do the work: an outsider\'s item needs the confirmation that names them', 
   await calls.fragments[0](tab.ctx);
   assert.match(tab.out.html, /name="outsider_confirm" value="stranger" required/);
   assert.match(tab.out.html, /opened by <strong>stranger<\/strong> \(outside the project\)/);
+  assert.match(tab.out.html, /The new branch starts from <code>main<\/code>/, 'the form says where the branch starts');
   const yes = actionCtx({ ...FORM, outsider_confirm: 'stranger' });
   await calls.actions['tracker-work'](yes.ctx);
   assert.strictEqual(yes.out.status, 200, yes.out.html);

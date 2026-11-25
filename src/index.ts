@@ -387,6 +387,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
       const specDir = specPreview(ref, id, it.title);
       const rc = rulesContext(ref, scope, id, s.workIn === 'worktree' ? worktreeDir(root(), ws, name, p.id, id) : ref.dir, specDir, branch);
       const refuse = !!o && s.outsiderItems === 'refuse';
+      const from = (await git.currentBranch(ref.dir)) || '';
       return send(`<div class="tracker-work">
         <p><strong>${esc(author.label)}</strong> (the workspace's author role${isClaude(author) ? ', interactive' : ', headless through the core runner'}) works
           ${esc(show(id))} in <strong>${esc(ws)}/${esc(name)}</strong>, on a new branch, in a screen session you watch and answer.
@@ -399,6 +400,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
           <label class="uk-form-label">Branch
             <input class="uk-input uk-form-small" name="branch" value="${esc(branch)}" pattern="[A-Za-z0-9][A-Za-z0-9._/\\-]{0,90}" required></label>
           <div class="uk-margin-small-top">
+            <p class="uk-text-meta uk-margin-remove">${from ? `The new branch starts from <code>${esc(from)}</code>, the branch ${esc(name)} is on now, and a ${esc(reqNoun)} from it goes against <code>${esc(from)}</code>.` : `${esc(name)} is not on a branch (or is not a git repository): the work needs one.`}</p>
             <label><input class="uk-radio" type="radio" name="work_in" value="branch"${s.workIn === 'branch' ? ' checked' : ''}> A branch in ${esc(name)} (a running site shows the change)</label><br>
             <label><input class="uk-radio" type="radio" name="work_in" value="worktree"${s.workIn === 'worktree' ? ' checked' : ''}> A worktree outside the workspace folders (${esc(name)} stays as it is)</label>
           </div>
@@ -592,13 +594,20 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
     return { ref, scope, id, asked };
   }
 
+  function contributor(): string {
+    try {
+      const c = (lib.loadSettings() || {}).contributor || {};
+      const v = [c.email, c.name].map((x) => String(x || '').trim()).find((x) => x && x !== 'CHANGE_ME');
+      return v || 'local';
+    } catch (_) { return 'local'; }
+  }
   function whoClicked(ctx: ActionContext): string {
     try {
       const req = (ctx.res as any) && (ctx.res as any).req;
       const signed = req && lib.auth && lib.auth.sessionOf(req) as { email?: string } | null;
       if (signed && signed.email) return signed.email;
     } catch (_) { /* no sign-in */ }
-    try { const c = (lib.loadSettings() || {}).contributor || {}; return String(c.email || c.name || 'local'); } catch (_) { return 'local'; }
+    return contributor();
   }
   async function account(): Promise<string> { try { return p.account ? await p.account() : ''; } catch (_) { return ''; } }
 
@@ -924,7 +933,7 @@ export function registerTracker(api: PluginApi, p: TrackerProvider, options: Tra
         const body = newItemBody(what);
         if (tokensIn(`${title}\n${body}`, p.secret ? [p.secret()] : []).length) return [];
         create(scope, { title, body }).then(async (r) => {
-          auditWrite(root(), { provider: p.id, scope: scope.id, item: r.id || '', workspace: ws, project: name, write: 'create', by: 'new folder', as: await account(), url: r.url || '', ok: r.ok, error: r.ok ? undefined : r.error });
+          auditWrite(root(), { provider: p.id, scope: scope.id, item: r.id || '', workspace: ws, project: name, write: 'create', by: contributor(), as: await account(), url: r.url || '', ok: r.ok, error: r.ok ? undefined : r.error });
         }).catch(() => { /* audited above when it answers */ });
         return [];
       },
